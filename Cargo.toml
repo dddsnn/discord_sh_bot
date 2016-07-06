@@ -1,0 +1,6 @@
+[package]
+name = "discord_sh_bot"
+version = "0.1.0"
+authors = ["dddsnn <marc.lehmann@gmx.de>"]
+
+[dependencies]
