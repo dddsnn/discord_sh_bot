@@ -93,32 +93,25 @@ impl ShBot {
             let mut parts = req.content.splitn(2, |c: char| c.is_whitespace());
             let command: String;
             if let Some(s) = parts.next() {
-                command = s.to_owned();
+                command = s.trim().to_owned();
             } else {
                 // TODO no command entered
                 println!("no command");
                 return;
             }
-            let options = parts.next().unwrap_or("").to_owned();
+            let options = parts.next().unwrap_or("").trim().to_owned();
             (command, options)
         };
-        // TODO trim command and options
 
         match &*command {
             "help" => println!("help!!"),
             "echo" => self.handle_echo(req, &options),
-            _ => println!("other"),
+            s => println!("other: {}", s),
         }
     }
 
     fn handle_echo(&self, req: Request, options: &str) {
-        // ok. exactly how does string concat work?
-        let mut reply = String::new();
-        //        reply =reply+ req.author.name + " wants me to echo \"" + options + "\"";
-        reply.push_str(&req.author.name);
-        reply.push_str(" wants me to echo \"");
-        reply.push_str(options);
-        reply.push_str("\"");
+        let reply = req.author.name.clone() + " wants me to echo \"" + options + "\".";
         self.discord
             .send_message(&req.channel_id, &reply, "", false)
             .expect("failed to send msg");
