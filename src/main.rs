@@ -2,6 +2,8 @@ extern crate discord;
 
 use discord::Discord;
 use discord::model::Event;
+use discord::model::ChannelId;
+use discord::model::User;
 
 fn main() {
     let token: String;
@@ -15,8 +17,14 @@ fn main() {
     ShBot::new(&token).run();
 }
 
+struct Request {
+    channel_id: ChannelId,
+    content: String,
+    author: User,
+}
+
 struct ShBot {
-    discord: discord::Discord,
+    discord: Discord,
     conn: discord::Connection,
     my_id: discord::model::UserId,
 }
@@ -44,6 +52,7 @@ impl ShBot {
                 num_msgs += 1;
             }
             // Wait a bit because of the rate limit.
+            // TODO do smarter retrying
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
         self.conn.shutdown().expect("failed shutdown");
@@ -55,6 +64,7 @@ impl ShBot {
         match self.conn.recv_event() {
             Err(_) => {
                 println!("error receiving event");
+                // TODO
                 false
             }
             Ok(Event::MessageCreate(msg)) => {
@@ -62,13 +72,55 @@ impl ShBot {
                     // Don't repeat own messages.
                     return false;
                 }
-                let reply = msg.author.name + " just said \"" + &msg.content + "\"";
-                self.discord
-                    .send_message(&msg.channel_id, &reply, "", false)
-                    .expect("failed to send msg");
+                let req = Request {
+                    channel_id: msg.channel_id,
+                    content: msg.content,
+                    author: msg.author,
+                };
+                self.handle_request(req);
                 true
             }
+            // TODO
             _ => false,
         }
+    }
+
+    fn handle_request(&mut self, req: Request) {
+        // Split at the first whitespace into command and options.
+        // TODO i have to use string here so i can do to_owned() to copy the splitn element and
+        // later have to deref to get str back. is there a better way to copy?
+        let (command, options) = {
+            let mut parts = req.content.splitn(2, |c: char| c.is_whitespace());
+            let command: String;
+            if let Some(s) = parts.next() {
+                command = s.to_owned();
+            } else {
+                // TODO no command entered
+                println!("no command");
+                return;
+            }
+            let options = parts.next().unwrap_or("").to_owned();
+            (command, options)
+        };
+        // TODO trim command and options
+
+        match &*command {
+            "help" => println!("help!!"),
+            "echo" => self.handle_echo(req, &options),
+            _ => println!("other"),
+        }
+    }
+
+    fn handle_echo(&self, req: Request, options: &str) {
+        // ok. exactly how does string concat work?
+        let mut reply = String::new();
+        //        reply =reply+ req.author.name + " wants me to echo \"" + options + "\"";
+        reply.push_str(&req.author.name);
+        reply.push_str(" wants me to echo \"");
+        reply.push_str(options);
+        reply.push_str("\"");
+        self.discord
+            .send_message(&req.channel_id, &reply, "", false)
+            .expect("failed to send msg");
     }
 }
