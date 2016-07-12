@@ -104,14 +104,29 @@ impl ShBot {
         };
 
         match &*command {
-            "help" => println!("help!!"),
+            "help" => self.handle_help(req, &options),
             "echo" => self.handle_echo(req, &options),
-            s => println!("other: {}", s),
+            unknown_command => self.handle_unknown(req, unknown_command),
         }
     }
 
     fn handle_echo(&self, req: Request, options: &str) {
         let reply = req.author.name.clone() + " wants me to echo \"" + options + "\".";
+        self.discord
+            .send_message(&req.channel_id, &reply, "", false)
+            .expect("failed to send msg");
+    }
+
+    fn handle_help(&self, req: Request, options: &str) {
+        let reply = "This is an unhelpful help text. There'll be a better one, I promise.";
+        self.discord
+            .send_message(&req.channel_id, &reply, "", false)
+            .expect("failed to send msg");
+    }
+
+    fn handle_unknown(&self, req: Request, unknown_command: &str) {
+        let reply = "\"".to_owned() + unknown_command +
+                    "\" is not a valid command. Type \"help\" to find out what is.";
         self.discord
             .send_message(&req.channel_id, &reply, "", false)
             .expect("failed to send msg");
