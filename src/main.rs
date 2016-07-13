@@ -44,29 +44,24 @@ impl ShBot<BotConnection> {
     }
 
     fn run(mut self) {
-        let mut num_msgs = 0;
-        while num_msgs < 2 {
-            if self.handle_event() == true {
-                num_msgs += 1;
-            }
+        loop {
+            self.handle_event();
             // Wait a bit because of the rate limit.
             // TODO do smarter retrying
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
     }
 
-    fn handle_event(&mut self) -> bool {
+    fn handle_event(&mut self) {
         // TODO remove return type (only used to limit number of loops)
         match self.discord.recv_event() {
             Err(_) => {
                 println!("error receiving event");
-                // TODO
-                false
             }
             Ok(Event::MessageCreate(msg)) => {
                 if msg.author.id == self.me.id {
                     // Don't repeat own messages.
-                    return false;
+                    return;
                 }
                 let req = Request {
                     channel_id: msg.channel_id,
@@ -74,10 +69,8 @@ impl ShBot<BotConnection> {
                     author: msg.author,
                 };
                 self.handle_request(req);
-                true
             }
-            // TODO
-            _ => false,
+            _ => {}
         }
     }
 
@@ -100,8 +93,10 @@ impl ShBot<BotConnection> {
         };
 
         match &*command {
+            // TODO unhardcode command strings
             "help" => self.handle_help(req, &options),
             "echo" => self.handle_echo(req, &options),
+            "shutdown" => self.handle_shutdown(),
             unknown_command => self.handle_unknown(req, unknown_command),
         }
     }
@@ -127,5 +122,9 @@ impl ShBot<BotConnection> {
         self.discord
             .send_message(&req.channel_id, &reply, "", false)
             .expect("failed to send msg");
+    }
+
+    fn handle_shutdown(&self) {
+        std::process::exit(0);
     }
 }
