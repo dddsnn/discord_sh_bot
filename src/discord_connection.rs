@@ -1,7 +1,7 @@
 extern crate discord;
 
 use std;
-use discord::model::{Event, ChannelId, CurrentUser, Message};
+use discord::model::{Event, ChannelId, CurrentUser, Message, Channel};
 
 const MAX_RETRIES: u32 = 5;
 
@@ -13,6 +13,7 @@ pub trait DiscordConnection {
                     nonce: &str,
                     tts: bool)
                     -> Result<Message, String>;
+    fn get_channel(&self, channel: ChannelId) -> Result<Channel, String>;
 }
 
 pub struct BotConnection {
@@ -83,5 +84,9 @@ impl DiscordConnection for BotConnection {
                     tts: bool)
                     -> Result<Message, String> {
         Self::retry(&mut move || self.discord.send_message(channel, text, nonce, tts))
+    }
+
+    fn get_channel(&self, channel: ChannelId) -> Result<Channel, String> {
+        Self::retry(&mut move || self.discord.get_channel(channel))
     }
 }

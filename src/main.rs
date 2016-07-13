@@ -3,7 +3,9 @@ extern crate discord;
 mod discord_connection;
 
 use discord_connection::{DiscordConnection, BotConnection};
-use discord::model::{Event, ChannelId, CurrentUser, User};
+use discord::model::{Event, Channel, ChannelId, CurrentUser, User, Message};
+
+const BOT_COMMAND: &'static str = ".sh";
 
 fn main() {
     let token: String;
@@ -51,10 +53,18 @@ impl ShBot<BotConnection> {
                 // TODO log, don't print
                 println!("Error receiving event: {}", msg);
             }
-            Ok(Event::MessageCreate(msg)) => {
-                if msg.author.id == self.me.id {
-                    // Don't repeat own messages.
-                    return;
+            Ok(Event::MessageCreate(mut msg)) => {
+                match self.message_concerns_me(msg) {
+                    Ok((false, _)) => {
+                        // Message not directed at the bot.
+                        return;
+                    }
+                    Ok((true, new_msg)) => msg = new_msg,
+                    Err(msg) => {
+                        // TODO log, don't print
+                        println!("Error getting channel information: {}", msg);
+                        return;
+                    }
                 }
                 let req = Request {
                     channel_id: msg.channel_id,
@@ -66,6 +76,40 @@ impl ShBot<BotConnection> {
             _ => {
                 // Event we don't care about.
             }
+        }
+    }
+
+    fn message_concerns_me(&self, mut msg: Message) -> Result<(bool, Message), String> {
+        if msg.author.id == self.me.id {
+            // Don't respond to own messages.
+            return Ok((false, msg));
+        }
+        // Get info about the channel the message arrived at.
+        // TODO cache
+        match self.discord.get_channel(msg.channel_id) {
+            Ok(channel) => {
+                if let Channel::Public(_) = channel {
+                    // Public channel, only handle if it was addressed at the bot (i.e.
+                    // prefixed with the bot command).
+                    let (first, second) = {
+                        let mut parts = msg.content.splitn(2, |c: char| c.is_whitespace());
+                        let first = parts.next().unwrap_or("").trim().to_owned();
+                        let second = parts.next().unwrap_or("").trim().to_owned();
+                        (first, second)
+                    };
+                    if first != BOT_COMMAND {
+                        // Command doesn't start with bot command, ignore.
+                        return Ok((false, msg));
+                    }
+                    // Handle message, but remove bot command from the beginning.
+                    msg.content = second;
+                    Ok((true, msg))
+                } else {
+                    // Private channel, handle.
+                    Ok((true, msg))
+                }
+            }
+            Err(msg) => return Err(msg),
         }
     }
 
