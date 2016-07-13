@@ -1,9 +1,11 @@
 extern crate discord;
 
-use discord::Discord;
+use std::result::Result;
 use discord::model::Event;
 use discord::model::ChannelId;
+use discord::model::CurrentUser;
 use discord::model::User;
+use discord::model::Message;
 
 fn main() {
     let token: String;
@@ -23,28 +25,21 @@ struct Request {
     author: User,
 }
 
-struct ShBot {
-    discord: Discord,
-    conn: discord::Connection,
-    my_id: discord::model::UserId,
+struct ShBot<D: DiscordConnection> {
+    discord: D,
+    me: CurrentUser,
 }
 
-impl ShBot {
+// TODO do i have to specify which kind of discordconnection?
+impl ShBot<BotConnection> {
     fn new(token: &str) -> Self {
-        let d = Discord::from_bot_token(&token).expect("error logging in");
-        println!("logged in");
-
-        let (c, re) = d.connect().expect("failed connect");
-        let my_id = re.user.id;
-        println!("connected");
+        let (d, me) = BotConnection::from_bot_token(token);
         ShBot {
             discord: d,
-            conn: c,
-            my_id: my_id,
+            me: me,
         }
     }
 
-    /// Shuts down when done.
     fn run(mut self) {
         let mut num_msgs = 0;
         while num_msgs < 2 {
@@ -55,20 +50,18 @@ impl ShBot {
             // TODO do smarter retrying
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
-        self.conn.shutdown().expect("failed shutdown");
-        println!("connection shutdown");
     }
 
     fn handle_event(&mut self) -> bool {
         // TODO remove return type (only used to limit number of loops)
-        match self.conn.recv_event() {
+        match self.discord.recv_event() {
             Err(_) => {
                 println!("error receiving event");
                 // TODO
                 false
             }
             Ok(Event::MessageCreate(msg)) => {
-                if msg.author.id == self.my_id {
+                if msg.author.id == self.me.id {
                     // Don't repeat own messages.
                     return false;
                 }
@@ -118,6 +111,7 @@ impl ShBot {
     }
 
     fn handle_help(&self, req: Request, options: &str) {
+        // TODO
         let reply = "This is an unhelpful help text. There'll be a better one, I promise.";
         self.discord
             .send_message(&req.channel_id, &reply, "", false)
@@ -130,5 +124,60 @@ impl ShBot {
         self.discord
             .send_message(&req.channel_id, &reply, "", false)
             .expect("failed to send msg");
+    }
+}
+
+trait DiscordConnection {
+    fn recv_event(&mut self) -> Result<Event, &str>;
+    fn send_message(&self,
+                    channel: &ChannelId,
+                    text: &str,
+                    nonce: &str,
+                    tts: bool)
+                    -> Result<Message, &str>;
+}
+
+struct BotConnection {
+    discord: discord::Discord,
+    conn: discord::Connection,
+}
+
+impl BotConnection {
+    fn from_bot_token(token: &str) -> (Self, CurrentUser) {
+        let d = discord::Discord::from_bot_token(&token).expect("error logging in");
+        println!("logged in");
+
+        let (c, ready_event) = d.connect().expect("failed connect");
+        let me = ready_event.user;
+        println!("connected");
+        (BotConnection {
+            discord: d,
+            conn: c,
+        },
+         me)
+    }
+}
+
+
+impl DiscordConnection for BotConnection {
+    fn recv_event(&mut self) -> Result<Event, &str> {
+        match self.conn.recv_event() {
+            // TODO error handling
+            Err(_) => Err("error"),
+            Ok(e) => Ok(e),
+        }
+    }
+
+    fn send_message(&self,
+                    channel: &ChannelId,
+                    text: &str,
+                    nonce: &str,
+                    tts: bool)
+                    -> Result<Message, &str> {
+        // TODO error handling
+        match self.discord.send_message(channel, text, nonce, tts) {
+            Err(_) => Err("error"),
+            Ok(msg) => Ok(msg),
+        }
     }
 }
