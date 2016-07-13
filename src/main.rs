@@ -2,13 +2,8 @@ extern crate discord;
 
 mod discord_connection;
 
-use discord_connection::DiscordConnection;
-use discord_connection::BotConnection;
-
-use discord::model::Event;
-use discord::model::ChannelId;
-use discord::model::CurrentUser;
-use discord::model::User;
+use discord_connection::{DiscordConnection, BotConnection};
+use discord::model::{Event, ChannelId, CurrentUser, User};
 
 fn main() {
     let token: String;

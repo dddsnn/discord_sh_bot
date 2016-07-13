@@ -1,11 +1,7 @@
 extern crate discord;
 
 use std;
-use discord::model::Event;
-use discord::model::ChannelId;
-use discord::model::CurrentUser;
-use discord::model::Message;
-
+use discord::model::{Event, ChannelId, CurrentUser, Message};
 
 const MAX_RETRIES: u32 = 5;
 
