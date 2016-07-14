@@ -1,6 +1,7 @@
 extern crate discord;
 
 mod discord_connection;
+mod common;
 
 use discord_connection::{DiscordConnection, BotConnection};
 use discord::model::{Event, Channel, ChannelId, CurrentUser, User, Message};
@@ -94,12 +95,7 @@ impl ShBot<BotConnection> {
                 if let Channel::Public(_) = channel {
                     // Public channel, only handle if it was addressed at the bot (i.e.
                     // prefixed with the bot command).
-                    let (first, second) = {
-                        let mut parts = msg.content.splitn(2, |c: char| c.is_whitespace());
-                        let first = parts.next().unwrap_or("").trim().to_owned();
-                        let second = parts.next().unwrap_or("").trim().to_owned();
-                        (first, second)
-                    };
+                    let (first, second) = common::str_head_tail(&msg.content);
                     if first != BOT_COMMAND {
                         // Command doesn't start with bot command, ignore.
                         return Ok((false, msg));
@@ -118,22 +114,11 @@ impl ShBot<BotConnection> {
 
     fn handle_request(&mut self, req: Request) {
         // Split at the first whitespace into command and options.
-        // TODO i have to use string here so i can do to_owned() to copy the splitn element and
-        // later have to deref to get str back. is there a better way to copy?
-        let (command, options) = {
-            let mut parts = req.content.splitn(2, |c: char| c.is_whitespace());
-            let command: String;
-            if let Some(s) = parts.next() {
-                command = s.trim().to_owned();
-            } else {
-                // TODO no command entered
-                println!("no command");
-                return;
-            }
-            let options = parts.next().unwrap_or("").trim().to_owned();
-            (command, options)
-        };
-
+        let (command, options) = common::str_head_tail(&req.content);
+        if command == "" {
+            // No command entered.
+            return;
+        }
         match &*command {
             // TODO unhardcode command strings
             "help" => self.handle_help(req, &options),
