@@ -29,6 +29,7 @@ struct Request {
 struct ShBot<D: DiscordConnection> {
     discord: D,
     me: CurrentUser,
+    running: bool,
 }
 
 // TODO do i have to specify which kind of discordconnection?
@@ -38,13 +39,15 @@ impl ShBot<BotConnection> {
         ShBot {
             discord: d,
             me: me,
+            running: true,
         }
     }
 
     fn run(mut self) {
-        loop {
+        while self.running {
             self.handle_event();
         }
+        self.discord.shutdown();
     }
 
     fn handle_event(&mut self) {
@@ -135,7 +138,7 @@ impl ShBot<BotConnection> {
             // TODO unhardcode command strings
             "help" => self.handle_help(req, &options),
             "echo" => self.handle_echo(req, &options),
-            "shutdown" => self.handle_shutdown(),
+            "shutdown" => self.handle_shutdown(req),
             unknown_command => self.handle_unknown(req, unknown_command),
         }
     }
@@ -169,7 +172,12 @@ impl ShBot<BotConnection> {
         }
     }
 
-    fn handle_shutdown(&self) {
-        std::process::exit(0);
+    fn handle_shutdown(&mut self, req: Request) {
+        if let Err(msg) = self.discord
+            .send_message(&req.channel_id, "Shutting down. Bye now.", "", false) {
+            // TODO log, don't print
+            println!("Failed to send message: {}", msg);
+        }
+        self.running = false;
     }
 }

@@ -14,6 +14,7 @@ pub trait DiscordConnection {
                     tts: bool)
                     -> Result<Message, String>;
     fn get_channel(&self, channel: ChannelId) -> Result<Channel, String>;
+    fn shutdown(self);
 }
 
 pub struct BotConnection {
@@ -88,5 +89,12 @@ impl DiscordConnection for BotConnection {
 
     fn get_channel(&self, channel: ChannelId) -> Result<Channel, String> {
         Self::retry(&mut move || self.discord.get_channel(channel))
+    }
+
+    fn shutdown(self) {
+        if let Err(err) = self.conn.shutdown() {
+            // TODO log, don't print
+            println!("Error shutting down the connection: {}", err);
+        }
     }
 }
