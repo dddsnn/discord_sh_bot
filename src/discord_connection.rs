@@ -24,12 +24,24 @@ pub struct BotConnection {
 
 impl BotConnection {
     pub fn from_bot_token(token: &str) -> (Self, CurrentUser) {
-        let d = discord::Discord::from_bot_token(&token).expect("error logging in");
-        println!("logged in");
+        let d = match discord::Discord::from_bot_token(&token) {
+            Ok(d) => d,
+            Err(err) => {
+                // TODO log, don't print
+                println!("Error logging in: {}", err);
+                std::process::exit(1);
+            }
+        };
 
-        let (c, ready_event) = d.connect().expect("failed connect");
+        let (c, ready_event) = match d.connect() {
+            Ok((c, re)) => (c, re),
+            Err(err) => {
+                // TODO log, don't print
+                println!("Error connecting: {}", err);
+                std::process::exit(1);
+            }
+        };
         let me = ready_event.user;
-        println!("connected");
         (BotConnection {
             discord: d,
             conn: c,
