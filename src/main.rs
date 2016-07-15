@@ -2,10 +2,11 @@ extern crate discord;
 
 mod discord_connection;
 mod common;
+mod sh_status;
 
-use std::collections::HashMap;
+use sh_status::ShStatus;
 use discord_connection::{DiscordConnection, BotConnection};
-use discord::model::{Event, Channel, ChannelId, CurrentUser, User, UserId, Message};
+use discord::model::{Event, Channel, ChannelId, CurrentUser, User, Message};
 
 const BOT_COMMAND: &'static str = ".sh";
 
@@ -29,16 +30,11 @@ struct Request {
     author: User,
 }
 
-// TODO put the logic handling info about players into its own struct that's composed in
-struct PlayerInfo {
-    wants_sh: bool,
-}
-
 struct ShBot<D: DiscordConnection> {
     discord: D,
     me: CurrentUser,
     running: bool,
-    player_info: HashMap<UserId, PlayerInfo>,
+    sh_status: ShStatus,
 }
 
 // TODO do i have to specify which kind of discordconnection?
@@ -49,7 +45,7 @@ impl ShBot<BotConnection> {
             discord: d,
             me: me,
             running: true,
-            player_info: HashMap::new(),
+            sh_status: ShStatus::new(),
         }
     }
 
@@ -179,7 +175,7 @@ impl ShBot<BotConnection> {
     }
 
     fn handle_want(&mut self, req: Request) {
-        self.player_info.insert(req.author.id, PlayerInfo { wants_sh: true });
+        self.sh_status.user_wants_sh(req.author.id);
         let reply = "Ok, I'll put you on the list.";
         if let Err(msg) = self.discord
             .send_message(&req.channel_id, &reply, "", false) {
@@ -189,8 +185,7 @@ impl ShBot<BotConnection> {
     }
 
     fn handle_status(&mut self, req: Request) {
-        let num_wanting =
-            self.player_info.values().fold(0, |acc, info| acc + (info.wants_sh as u8));
+        let num_wanting = self.sh_status.num_users_wanting_sh();
         // TODO special case one player (is/are)
         let reply = format!("There are currently {} players who want to play Stronghold.",
                             num_wanting);
