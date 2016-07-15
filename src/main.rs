@@ -3,8 +3,9 @@ extern crate discord;
 mod discord_connection;
 mod common;
 
+use std::collections::HashMap;
 use discord_connection::{DiscordConnection, BotConnection};
-use discord::model::{Event, Channel, ChannelId, CurrentUser, User, Message};
+use discord::model::{Event, Channel, ChannelId, CurrentUser, User, UserId, Message};
 
 const BOT_COMMAND: &'static str = ".sh";
 
@@ -21,16 +22,23 @@ fn main() {
     ShBot::new(&token).run();
 }
 
+// TODO put in a model module
 struct Request {
     channel_id: ChannelId,
     content: String,
     author: User,
 }
 
+// TODO put the logic handling info about players into its own struct that's composed in
+struct PlayerInfo {
+    wants_sh: bool,
+}
+
 struct ShBot<D: DiscordConnection> {
     discord: D,
     me: CurrentUser,
     running: bool,
+    player_info: HashMap<UserId, PlayerInfo>,
 }
 
 // TODO do i have to specify which kind of discordconnection?
@@ -41,6 +49,7 @@ impl ShBot<BotConnection> {
             discord: d,
             me: me,
             running: true,
+            player_info: HashMap::new(),
         }
     }
 
@@ -123,11 +132,14 @@ impl ShBot<BotConnection> {
             // TODO unhardcode command strings
             "help" => self.handle_help(req, &options),
             "echo" => self.handle_echo(req, &options),
+            "want" => self.handle_want(req),
+            "status" => self.handle_status(req),
             "shutdown" => self.handle_shutdown(req),
             unknown_command => self.handle_unknown(req, unknown_command),
         }
     }
 
+    // TODO factor out request handling
     fn handle_echo(&self, req: Request, options: &str) {
         let reply = req.author.name.clone() + " wants me to echo \"" + options + "\".";
         if let Err(msg) = self.discord
@@ -164,5 +176,28 @@ impl ShBot<BotConnection> {
             println!("Failed to send message: {}", msg);
         }
         self.running = false;
+    }
+
+    fn handle_want(&mut self, req: Request) {
+        self.player_info.insert(req.author.id, PlayerInfo { wants_sh: true });
+        let reply = "Ok, I'll put you on the list.";
+        if let Err(msg) = self.discord
+            .send_message(&req.channel_id, &reply, "", false) {
+            // TODO log, don't print
+            println!("Failed to send message: {}", msg);
+        }
+    }
+
+    fn handle_status(&mut self, req: Request) {
+        let num_wanting =
+            self.player_info.values().fold(0, |acc, info| acc + (info.wants_sh as u8));
+        // TODO special case one player (is/are)
+        let reply = format!("There are currently {} players who want to play Stronghold.",
+                            num_wanting);
+        if let Err(msg) = self.discord
+            .send_message(&req.channel_id, &reply, "", false) {
+            // TODO log, don't print
+            println!("Failed to send message: {}", msg);
+        }
     }
 }
