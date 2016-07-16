@@ -1,4 +1,5 @@
 use discord::model::Message;
+use common::SplitWhitespaceWithRest;
 
 pub enum Request {
     None,
@@ -19,6 +20,7 @@ pub fn parse_message(msg: &Message) -> Request {
         // TODO use matching here once slice matching becomes stable (don't want to use nighyly}
         //        if previous == vec![] {
         match tokens.next() {
+            // TODO any way to get rid of the returns?
             None => return Request::None,
             Some(token) => {
                 match &*token {
