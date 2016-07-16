@@ -5,7 +5,7 @@ mod common;
 mod sh_status;
 mod message_parser;
 
-use discord::model::{Event, Channel, ChannelId, CurrentUser, User, Message};
+use discord::model::{Event, Channel, CurrentUser, Message};
 use discord_connection::{DiscordConnection, BotConnection};
 use sh_status::ShStatus;
 use message_parser::Request;
