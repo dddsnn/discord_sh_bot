@@ -14,21 +14,20 @@ pub enum Request {
 }
 
 pub fn parse_message(msg: &Message) -> Request {
-    let mut tokens = msg.content.split_whitespace().map(str::to_lowercase);
+    let mut tokens = SplitWhitespaceWithRest::new(&msg.content);
     //    let previous = Vec::new();
     loop {
-        // TODO use matching here once slice matching becomes stable (don't want to use nighyly}
+        // TODO use matching here once slice matching becomes stable (don't want to use nightly}
         //        if previous == vec![] {
         match tokens.next() {
             // TODO any way to get rid of the returns?
             None => return Request::None,
             Some(token) => {
-                match &*token {
+                match &*token.to_lowercase() {
                     "" => return Request::None,
                     "shutdown" => return Request::Shutdown,
-                    // TODO add actual message
                     "echo" => {
-                        return Request::Echo { echo_msg: tokens.next().unwrap_or("".to_owned()) }
+                        return Request::Echo { echo_msg: tokens.rest().unwrap_or("").to_owned() }
                     }
                     "help" => return Request::Help,
                     "want" => return Request::Want,
