@@ -116,6 +116,7 @@ impl ShBot<BotConnection> {
             Request::Echo { echo_msg } => self.handle_echo(msg, &echo_msg),
             Request::Help => self.handle_help(msg),
             Request::Want => self.handle_want(msg),
+            Request::DontWant => self.handle_dont_want(msg),
             Request::Status => self.handle_status(msg),
         }
     }
@@ -139,7 +140,6 @@ impl ShBot<BotConnection> {
         self.running = false;
     }
 
-    // TODO factor out request handling
     fn handle_echo(&self, msg: Message, echo_msg: &str) {
         let reply = msg.author.name + " wants me to echo \"" + echo_msg + "\".";
         if let Err(msg) = self.discord
@@ -162,6 +162,19 @@ impl ShBot<BotConnection> {
     fn handle_want(&mut self, msg: Message) {
         self.sh_status.user_wants_sh(msg.author.id);
         let reply = "Ok, I'll put you on the list.";
+        if let Err(msg) = self.discord
+            .send_message(&msg.channel_id, &reply, "", false) {
+            // TODO log, don't print
+            println!("Failed to send message: {}", msg);
+        }
+    }
+
+    fn handle_dont_want(&mut self, msg: Message) {
+        let reply = if self.sh_status.user_doesnt_want_sh(msg.author.id) {
+            "Ok, I'll take you off the list."
+        } else {
+            "I'll remember to not bother you about Stronghold."
+        };
         if let Err(msg) = self.discord
             .send_message(&msg.channel_id, &reply, "", false) {
             // TODO log, don't print
