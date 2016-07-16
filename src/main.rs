@@ -3,7 +3,10 @@ extern crate discord;
 mod discord_connection;
 mod common;
 mod sh_status;
+mod request_handlers;
 
+use std::collections::HashMap;
+use request_handlers::*;
 use sh_status::ShStatus;
 use discord_connection::{DiscordConnection, BotConnection};
 use discord::model::{Event, Channel, ChannelId, CurrentUser, User, Message};
@@ -23,29 +26,30 @@ fn main() {
     ShBot::new(&token).run();
 }
 
-// TODO put in a model module
-struct Request {
-    channel_id: ChannelId,
-    content: String,
-    author: User,
-}
-
-struct ShBot<D: DiscordConnection> {
+struct ShBot<'a, D: DiscordConnection> {
     discord: D,
     me: CurrentUser,
     running: bool,
     sh_status: ShStatus,
+    request_handlers: HashMap<&'a str, &'a RequestHandler>,
 }
 
 // TODO do i have to specify which kind of discordconnection?
-impl ShBot<BotConnection> {
+impl<'a> ShBot<'a, BotConnection> {
     fn new(token: &str) -> Self {
         let (d, me) = BotConnection::from_bot_token(token);
+        let mut request_handlers:HashMap<&'a str,&'a RequestHandler> = HashMap::new();
+        let eh=EchoHandler;
+        request_handlers.insert("echo", &eh);
+//        request_handlers.insert("help", HelpHandler);
+//        request_handlers.insert("want", WantHandler);
+//        request_handlers.insert("status", StatusHandler);
         ShBot {
             discord: d,
             me: me,
             running: true,
             sh_status: ShStatus::new(),
+            request_handlers: HashMap::new(),
         }
     }
 
@@ -75,12 +79,7 @@ impl ShBot<BotConnection> {
                         return;
                     }
                 }
-                let req = Request {
-                    channel_id: msg.channel_id,
-                    content: msg.content,
-                    author: msg.author,
-                };
-                self.handle_request(req);
+                self.handle_request(msg.channel_id, msg.author, &msg.content);
             }
             _ => {
                 // Event we don't care about.
@@ -117,22 +116,40 @@ impl ShBot<BotConnection> {
         }
     }
 
-    fn handle_request(&mut self, req: Request) {
+    fn handle_request(&mut self, channel_id: ChannelId, author: User, content: &str) {
         // Split at the first whitespace into command and options.
-        let (command, options) = common::str_head_tail(&req.content);
+        let (command, options) = common::str_head_tail(&content);
         if command == "" {
             // No command entered.
             return;
         }
-        match &*command {
-            // TODO unhardcode command strings
-            "help" => self.handle_help(req, &options),
-            "echo" => self.handle_echo(req, &options),
-            "want" => self.handle_want(req),
-            "status" => self.handle_status(req),
-            "shutdown" => self.handle_shutdown(req),
-            unknown_command => self.handle_unknown(req, unknown_command),
+        let req = Request {
+            command: &command,
+            options: &options,
+            channel_id: channel_id,
+            author: author,
+        };
+        // Handle shutdown specially. Handling it via a handler would mean that handler would need a
+        // reference to the bot in oder to shut it down.
+        if command=="shutdown"{
+        	self.handle_shutdown(req);
         }
+        // TODO why the hell do i have to do this here? i'm sure i don't. shouldn't.
+        let unknown_handler = UnknownHandler;
+        let unknown_handler_as_request_handler:&RequestHandler=&unknown_handler;
+        self.request_handlers
+            .get(req.command)
+            .unwrap_or(&unknown_handler_as_request_handler)
+            .handle(req, &self.discord, &mut self.sh_status);
+        //        match &*command {
+        //            // TODO unhardcode command strings
+        //            "help" => self.handle_help(req, &options),
+        //            "echo" => self.handle_echo(req, &options),
+        //            "want" => self.handle_want(req),
+        //            "status" => self.handle_status(req),
+        //            "shutdown" => self.handle_shutdown(req),
+        //            unknown_command => self.handle_unknown(req, unknown_command),
+        //        }
     }
 
     // TODO factor out request handling
@@ -155,14 +172,8 @@ impl ShBot<BotConnection> {
         }
     }
 
-    fn handle_unknown(&self, req: Request, unknown_command: &str) {
-        let reply = "\"".to_owned() + unknown_command +
-                    "\" is not a valid command. Type \"help\" to find out what is.";
-        if let Err(msg) = self.discord
-            .send_message(&req.channel_id, &reply, "", false) {
-            // TODO log, don't print
-            println!("Failed to send message: {}", msg);
-        }
+    fn handle_unknown(&mut self, req: Request, unknown_command: &str) {
+//        self.unknown_handler.handle(req, &self.discord, &mut self.sh_status);
     }
 
     fn handle_shutdown(&mut self, req: Request) {
