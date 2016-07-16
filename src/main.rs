@@ -3,10 +3,12 @@ extern crate discord;
 mod discord_connection;
 mod common;
 mod sh_status;
+mod message_parser;
 
-use sh_status::ShStatus;
-use discord_connection::{DiscordConnection, BotConnection};
 use discord::model::{Event, Channel, ChannelId, CurrentUser, User, Message};
+use discord_connection::{DiscordConnection, BotConnection};
+use sh_status::ShStatus;
+use message_parser::Request;
 
 const BOT_COMMAND: &'static str = ".sh";
 
@@ -21,13 +23,6 @@ fn main() {
     }
 
     ShBot::new(&token).run();
-}
-
-// TODO put in a model module
-struct Request {
-    channel_id: ChannelId,
-    content: String,
-    author: User,
 }
 
 struct ShBot<D: DiscordConnection> {
@@ -75,12 +70,7 @@ impl ShBot<BotConnection> {
                         return;
                     }
                 }
-                let req = Request {
-                    channel_id: msg.channel_id,
-                    content: msg.content,
-                    author: msg.author,
-                };
-                self.handle_request(req);
+                self.handle_message(msg);
             }
             _ => {
                 // Event we don't care about.
@@ -117,80 +107,75 @@ impl ShBot<BotConnection> {
         }
     }
 
-    fn handle_request(&mut self, req: Request) {
-        // Split at the first whitespace into command and options.
-        let (command, options) = common::str_head_tail(&req.content);
-        if command == "" {
-            // No command entered.
-            return;
-        }
-        match &*command {
-            // TODO unhardcode command strings
-            "help" => self.handle_help(req, &options),
-            "echo" => self.handle_echo(req, &options),
-            "want" => self.handle_want(req),
-            "status" => self.handle_status(req),
-            "shutdown" => self.handle_shutdown(req),
-            unknown_command => self.handle_unknown(req, unknown_command),
+    fn handle_message(&mut self, msg: Message) {
+        let req = message_parser::parse_message(&msg);
+        match req {
+            Request::None => {}
+            Request::Unknown => self.handle_unknown(msg),
+            Request::Shutdown => self.handle_shutdown(msg),
+            Request::Echo { echo_msg } => self.handle_echo(msg, &echo_msg),
+            Request::Help => self.handle_help(msg),
+            Request::Want => self.handle_want(msg),
+            Request::Status => self.handle_status(msg),
         }
     }
 
-    // TODO factor out request handling
-    fn handle_echo(&self, req: Request, options: &str) {
-        let reply = req.author.name.clone() + " wants me to echo \"" + options + "\".";
+    fn handle_unknown(&self, msg: Message) {
+        let reply = "\"".to_owned() + &msg.content +
+                    "\" is not a valid request. Type \"help\" to find out what is.";
         if let Err(msg) = self.discord
-            .send_message(&req.channel_id, &reply, "", false) {
+            .send_message(&msg.channel_id, &reply, "", false) {
             // TODO log, don't print
             println!("Failed to send message: {}", msg);
         }
     }
 
-    fn handle_help(&self, req: Request, options: &str) {
-        // TODO
-        let reply = "This is an unhelpful help text. There'll be a better one, I promise.";
+    fn handle_shutdown(&mut self, msg: Message) {
         if let Err(msg) = self.discord
-            .send_message(&req.channel_id, &reply, "", false) {
-            // TODO log, don't print
-            println!("Failed to send message: {}", msg);
-        }
-    }
-
-    fn handle_unknown(&self, req: Request, unknown_command: &str) {
-        let reply = "\"".to_owned() + unknown_command +
-                    "\" is not a valid command. Type \"help\" to find out what is.";
-        if let Err(msg) = self.discord
-            .send_message(&req.channel_id, &reply, "", false) {
-            // TODO log, don't print
-            println!("Failed to send message: {}", msg);
-        }
-    }
-
-    fn handle_shutdown(&mut self, req: Request) {
-        if let Err(msg) = self.discord
-            .send_message(&req.channel_id, "Shutting down. Bye now.", "", false) {
+            .send_message(&msg.channel_id, "Shutting down. Bye now.", "", false) {
             // TODO log, don't print
             println!("Failed to send message: {}", msg);
         }
         self.running = false;
     }
 
-    fn handle_want(&mut self, req: Request) {
-        self.sh_status.user_wants_sh(req.author.id);
-        let reply = "Ok, I'll put you on the list.";
+    // TODO factor out request handling
+    fn handle_echo(&self, msg: Message, echo_msg: &str) {
+        let reply = msg.author.name + " wants me to echo \"" + echo_msg + "\".";
         if let Err(msg) = self.discord
-            .send_message(&req.channel_id, &reply, "", false) {
+            .send_message(&msg.channel_id, &reply, "", false) {
             // TODO log, don't print
             println!("Failed to send message: {}", msg);
         }
     }
 
-    fn handle_status(&mut self, req: Request) {
+    fn handle_help(&self, msg: Message) {
+        // TODO
+        let reply = "This is an unhelpful help text. There'll be a better one, I promise.";
+        if let Err(msg) = self.discord
+            .send_message(&msg.channel_id, &reply, "", false) {
+            // TODO log, don't print
+            println!("Failed to send message: {}", msg);
+        }
+    }
+
+    fn handle_want(&mut self, msg: Message) {
+        self.sh_status.user_wants_sh(msg.author.id);
+        let reply = "Ok, I'll put you on the list.";
+        if let Err(msg) = self.discord
+            .send_message(&msg.channel_id, &reply, "", false) {
+            // TODO log, don't print
+            println!("Failed to send message: {}", msg);
+        }
+    }
+
+    fn handle_status(&mut self, msg: Message) {
         let num_wanting = self.sh_status.num_users_wanting_sh();
         // TODO special case one player (is/are)
         let reply = format!("There are currently {} players who want to play Stronghold.",
                             num_wanting);
         if let Err(msg) = self.discord
-            .send_message(&req.channel_id, &reply, "", false) {
+            .send_message(&msg.channel_id, &reply, "", false) {
             // TODO log, don't print
             println!("Failed to send message: {}", msg);
         }
