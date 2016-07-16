@@ -7,12 +7,7 @@ const MAX_RETRIES: u32 = 5;
 
 pub trait DiscordConnection {
     fn recv_event(&mut self) -> Result<Event, String>;
-    fn send_message(&self,
-                    channel: &ChannelId,
-                    text: &str,
-                    nonce: &str,
-                    tts: bool)
-                    -> Result<Message, String>;
+    fn send_message(&self, channel: &ChannelId, text: &str, tts: bool) -> Result<Message, String>;
     fn get_channel(&self, channel: ChannelId) -> Result<Channel, String>;
     fn shutdown(self);
 }
@@ -90,13 +85,8 @@ impl DiscordConnection for BotConnection {
     }
 
     /// Returns an error message on error.
-    fn send_message(&self,
-                    channel: &ChannelId,
-                    text: &str,
-                    nonce: &str,
-                    tts: bool)
-                    -> Result<Message, String> {
-        Self::retry(&mut move || self.discord.send_message(channel, text, nonce, tts))
+    fn send_message(&self, channel: &ChannelId, text: &str, tts: bool) -> Result<Message, String> {
+        Self::retry(&mut move || self.discord.send_message(channel, text, "", tts))
     }
 
     fn get_channel(&self, channel: ChannelId) -> Result<Channel, String> {

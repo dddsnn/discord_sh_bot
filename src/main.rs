@@ -125,7 +125,7 @@ impl ShBot<BotConnection> {
         let reply = "\"".to_owned() + &msg.content +
                     "\" is not a valid request. Type \"help\" to find out what is.";
         if let Err(msg) = self.discord
-            .send_message(&msg.channel_id, &reply, "", false) {
+            .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
             println!("Failed to send message: {}", msg);
         }
@@ -133,7 +133,7 @@ impl ShBot<BotConnection> {
 
     fn handle_shutdown(&mut self, msg: Message) {
         if let Err(msg) = self.discord
-            .send_message(&msg.channel_id, "Shutting down. Bye now.", "", false) {
+            .send_message(&msg.channel_id, "Shutting down. Bye now.", false) {
             // TODO log, don't print
             println!("Failed to send message: {}", msg);
         }
@@ -143,7 +143,7 @@ impl ShBot<BotConnection> {
     fn handle_echo(&self, msg: Message, echo_msg: &str) {
         let reply = msg.author.name + " wants me to echo \"" + echo_msg + "\".";
         if let Err(msg) = self.discord
-            .send_message(&msg.channel_id, &reply, "", false) {
+            .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
             println!("Failed to send message: {}", msg);
         }
@@ -153,7 +153,7 @@ impl ShBot<BotConnection> {
         // TODO
         let reply = "This is an unhelpful help text. There'll be a better one, I promise.";
         if let Err(msg) = self.discord
-            .send_message(&msg.channel_id, &reply, "", false) {
+            .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
             println!("Failed to send message: {}", msg);
         }
@@ -163,7 +163,7 @@ impl ShBot<BotConnection> {
         self.sh_status.user_wants_sh(msg.author.id);
         let reply = "Ok, I'll put you on the list.";
         if let Err(msg) = self.discord
-            .send_message(&msg.channel_id, &reply, "", false) {
+            .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
             println!("Failed to send message: {}", msg);
         }
@@ -176,7 +176,7 @@ impl ShBot<BotConnection> {
             "I'll remember to not bother you about Stronghold."
         };
         if let Err(msg) = self.discord
-            .send_message(&msg.channel_id, &reply, "", false) {
+            .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
             println!("Failed to send message: {}", msg);
         }
@@ -188,7 +188,7 @@ impl ShBot<BotConnection> {
         let reply = format!("There are currently {} players who want to play Stronghold.",
                             num_wanting);
         if let Err(msg) = self.discord
-            .send_message(&msg.channel_id, &reply, "", false) {
+            .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
             println!("Failed to send message: {}", msg);
         }
