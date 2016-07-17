@@ -5,6 +5,7 @@ mod common;
 mod sh_status;
 mod message_parser;
 
+use std::sync::mpsc;
 use discord::model::{Event, Channel, CurrentUser, Message};
 use discord_connection::{DiscordConnection, BotConnection};
 use sh_status::ShStatus;
@@ -22,30 +23,53 @@ fn main() {
         std::process::exit(1);
     }
 
-    ShBot::new(&token).run();
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || listen_for_shutdown(sender));
+    ShBot::new(&token, receiver).run();
+}
+
+fn listen_for_shutdown(shutdown_sender: mpsc::Sender<()>) {
+    println!("Enter \"s\" or \"shutdown\" to shut down gracefully.");
+    let mut buf = String::new();
+    let stdin = std::io::stdin();
+    loop {
+        stdin.read_line(&mut buf)
+            .unwrap_or_else(|err| {
+                println!("Unable to read from stdin: {}", err);
+                0
+            });
+        let input = buf.trim();
+        if input == "s" || input == "shutdown" {
+            break;
+        }
+    }
+    shutdown_sender.send(()).expect("Unable to send shutdown to main loop.");
+    println!("Sent the shutdown signal to the main thread. It will exit as soon as it receives \
+              the next event. (Don't ask...)");
 }
 
 struct ShBot<D: DiscordConnection> {
     discord: D,
     me: CurrentUser,
-    running: bool,
+    shutdown_receiver: mpsc::Receiver<()>,
     sh_status: ShStatus,
 }
 
 // TODO do i have to specify which kind of discordconnection?
 impl ShBot<BotConnection> {
-    fn new(token: &str) -> Self {
+    fn new(token: &str, shutdown_receiver: mpsc::Receiver<()>) -> Self {
         let (d, me) = BotConnection::from_bot_token(token);
+        //        let shutdown_received = shutdown_received.clone();
         ShBot {
             discord: d,
             me: me,
-            running: true,
+            shutdown_receiver: shutdown_receiver,
             sh_status: ShStatus::new(),
         }
     }
 
     fn run(mut self) {
-        while self.running {
+        while let Err(mpsc::TryRecvError::Empty) = self.shutdown_receiver.try_recv() {
             self.handle_event();
         }
         self.discord.shutdown();
@@ -112,7 +136,6 @@ impl ShBot<BotConnection> {
         match req {
             Request::None => {}
             Request::Unknown => self.handle_unknown(msg),
-            Request::Shutdown => self.handle_shutdown(msg),
             Request::Echo { echo_msg } => self.handle_echo(msg, &echo_msg),
             Request::Help => self.handle_help(msg),
             Request::Want => self.handle_want(msg),
@@ -129,15 +152,6 @@ impl ShBot<BotConnection> {
             // TODO log, don't print
             println!("Failed to send message: {}", msg);
         }
-    }
-
-    fn handle_shutdown(&mut self, msg: Message) {
-        if let Err(msg) = self.discord
-            .send_message(&msg.channel_id, "Shutting down. Bye now.", false) {
-            // TODO log, don't print
-            println!("Failed to send message: {}", msg);
-        }
-        self.running = false;
     }
 
     fn handle_echo(&self, msg: Message, echo_msg: &str) {

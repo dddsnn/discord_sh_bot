@@ -4,7 +4,6 @@ use common::SplitWhitespaceWithRest;
 pub enum Request {
     None,
     Unknown,
-    Shutdown,
     Echo {
         echo_msg: String,
     },
@@ -25,7 +24,6 @@ pub fn parse_message(msg: &Message) -> Request {
                 Some(token) => {
                     match &*token.to_lowercase() {
                         "" => return Request::None,
-                        "shutdown" => return Request::Shutdown,
                         "echo" => {
                             return Request::Echo {
                                 echo_msg: tokens.rest().unwrap_or("").to_owned(),
