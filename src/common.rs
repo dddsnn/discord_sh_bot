@@ -53,6 +53,20 @@ impl<'a> SplitWhitespaceWithRest<'a> {
             Some(&self.string[self.start_idx..])
         }
     }
+
+    /// Rewinds the iterator, so that the next call to next() will return the same token again. The
+    /// exception is the case where the previous call to next() returned None: in that case, the
+    /// next call will return the last token of the string.
+    pub fn rewind(&mut self) {
+        let prev_end_idx = self.string[..self.start_idx]
+            .rfind(|c: char| !c.is_whitespace())
+            .unwrap_or(self.start_idx);
+        let prev_start_idx = self.string[..prev_end_idx]
+            .rfind(char::is_whitespace)
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        self.start_idx = prev_start_idx;
+    }
 }
 
 #[cfg(test)]
@@ -60,12 +74,14 @@ mod tests_split_whitespace_with_rest {
     use super::SplitWhitespaceWithRest;
 
     #[test]
-    fn one_space() {
-        let mut s = SplitWhitespaceWithRest::new("asd sDf DfG");
-        assert_eq!(Some("asd sDf DfG"), s.rest());
+    fn next_rest_one_space() {
+        let mut s = SplitWhitespaceWithRest::new("asd ßDf x DfG");
+        assert_eq!(Some("asd ßDf x DfG"), s.rest());
         assert_eq!(Some("asd"), s.next());
-        assert_eq!(Some("sDf DfG"), s.rest());
-        assert_eq!(Some("sDf"), s.next());
+        assert_eq!(Some("ßDf x DfG"), s.rest());
+        assert_eq!(Some("ßDf"), s.next());
+        assert_eq!(Some("x DfG"), s.rest());
+        assert_eq!(Some("x"), s.next());
         assert_eq!(Some("DfG"), s.rest());
         assert_eq!(Some("DfG"), s.next());
         assert_eq!(None, s.rest());
@@ -74,12 +90,14 @@ mod tests_split_whitespace_with_rest {
     }
 
     #[test]
-    fn multi_spaces() {
-        let mut s = SplitWhitespaceWithRest::new("asd   sDf\t DfG");
-        assert_eq!(Some("asd   sDf\t DfG"), s.rest());
+    fn next_rest_multi_spaces() {
+        let mut s = SplitWhitespaceWithRest::new("asd   ßDf x\t DfG");
+        assert_eq!(Some("asd   ßDf x\t DfG"), s.rest());
         assert_eq!(Some("asd"), s.next());
-        assert_eq!(Some("sDf\t DfG"), s.rest());
-        assert_eq!(Some("sDf"), s.next());
+        assert_eq!(Some("ßDf x\t DfG"), s.rest());
+        assert_eq!(Some("ßDf"), s.next());
+        assert_eq!(Some("x\t DfG"), s.rest());
+        assert_eq!(Some("x"), s.next());
         assert_eq!(Some("DfG"), s.rest());
         assert_eq!(Some("DfG"), s.next());
         assert_eq!(None, s.rest());
@@ -88,16 +106,87 @@ mod tests_split_whitespace_with_rest {
     }
 
     #[test]
-    fn with_surrounding_space() {
-        let mut s = SplitWhitespaceWithRest::new("   asd   sDf\t DfG\t \t");
-        assert_eq!(Some("asd   sDf\t DfG\t \t"), s.rest());
+    fn next_rest_with_surrounding_space() {
+        let mut s = SplitWhitespaceWithRest::new(" asd   ßDf x\t DfG\t \t");
+        assert_eq!(Some("asd   ßDf x\t DfG\t \t"), s.rest());
         assert_eq!(Some("asd"), s.next());
-        assert_eq!(Some("sDf\t DfG\t \t"), s.rest());
-        assert_eq!(Some("sDf"), s.next());
+        assert_eq!(Some("ßDf x\t DfG\t \t"), s.rest());
+        assert_eq!(Some("ßDf"), s.next());
+        assert_eq!(Some("x\t DfG\t \t"), s.rest());
+        assert_eq!(Some("x"), s.next());
         assert_eq!(Some("DfG\t \t"), s.rest());
         assert_eq!(Some("DfG"), s.next());
         assert_eq!(None, s.rest());
         assert_eq!(None, s.next());
         assert_eq!(None, s.rest());
+    }
+
+    #[test]
+    fn rewind_one_space() {
+        let mut s = SplitWhitespaceWithRest::new("asd ßDf x DfG");
+        s.next();
+        s.rewind();
+        assert_eq!(Some("asd"), s.next());
+        s.next();
+        s.rewind();
+        assert_eq!(Some("ßDf"), s.next());
+        s.next();
+        s.rewind();
+        assert_eq!(Some("x"), s.next());
+        s.next();
+        s.rewind();
+        assert_eq!(Some("DfG"), s.next());
+        assert_eq!(None, s.next());
+        s.rewind();
+        s.rewind();
+        s.rewind();
+        s.rewind();
+        assert_eq!(Some("asd"), s.next());
+    }
+
+    #[test]
+    fn rewind_multi_spaces() {
+        let mut s = SplitWhitespaceWithRest::new("asd   ßDf x\t DfG");
+        s.next();
+        s.rewind();
+        assert_eq!(Some("asd"), s.next());
+        s.next();
+        s.rewind();
+        assert_eq!(Some("ßDf"), s.next());
+        s.next();
+        s.rewind();
+        assert_eq!(Some("x"), s.next());
+        s.next();
+        s.rewind();
+        assert_eq!(Some("DfG"), s.next());
+        assert_eq!(None, s.next());
+        s.rewind();
+        s.rewind();
+        s.rewind();
+        s.rewind();
+        assert_eq!(Some("asd"), s.next());
+    }
+
+    #[test]
+    fn rewind_with_surrounding_space() {
+        let mut s = SplitWhitespaceWithRest::new(" asd   ßDf x\t DfG\t \t");
+        s.next();
+        s.rewind();
+        assert_eq!(Some("asd"), s.next());
+        s.next();
+        s.rewind();
+        assert_eq!(Some("ßDf"), s.next());
+        s.next();
+        s.rewind();
+        assert_eq!(Some("x"), s.next());
+        s.next();
+        s.rewind();
+        assert_eq!(Some("DfG"), s.next());
+        assert_eq!(None, s.next());
+        s.rewind();
+        s.rewind();
+        s.rewind();
+        s.rewind();
+        assert_eq!(Some("asd"), s.next());
     }
 }
