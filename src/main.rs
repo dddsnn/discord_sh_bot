@@ -138,7 +138,7 @@ impl ShBot<BotConnection> {
             Request::Unknown => self.handle_unknown(msg),
             Request::Echo { echo_msg } => self.handle_echo(msg, &echo_msg),
             Request::Help => self.handle_help(msg),
-            Request::Want => self.handle_want(msg),
+            Request::Want { t6, t8, t10 } => self.handle_want(msg, t6, t8, t10),
             Request::DontWant => self.handle_dont_want(msg),
             Request::Status => self.handle_status(msg),
         }
@@ -173,9 +173,38 @@ impl ShBot<BotConnection> {
         }
     }
 
-    fn handle_want(&mut self, msg: Message) {
-        self.sh_status.user_wants_sh(msg.author.id);
-        let reply = "Ok, I'll put you on the list.";
+    fn handle_want(&mut self, msg: Message, t6: bool, t8: bool, t10: bool) {
+        let ud = self.sh_status.add_user_wants_sh(msg.author.id, t6, t8, t10);
+        // TODO maybe factor out forming the reply? this gets pretty long
+        let kind = match ud.wants_t6 as usize + ud.wants_t8 as usize + ud.wants_t10 as usize {
+            1 => {
+                if ud.wants_t6 {
+                    "tier 6 Stronghold"
+                } else if ud.wants_t8 {
+                    "tier 8 Stronghold"
+                } else {
+                    "tier 10 Stronghold"
+                }
+            }
+            2 => {
+                if ud.wants_t6 {
+                    if ud.wants_t8 {
+                        "tier 6 and tier 8 Stronghold"
+                    } else {
+                        "tier 6 and tier 10 Stronghold"
+                    }
+                } else {
+                    "tier 8 and tier 10 Stronghold"
+                }
+            }
+            3 => "any kind of Stronghold",
+            _ => {
+                // This shouldn't happen. Can't happen.
+                "a kind of Stronghold that has yet to be invented (to be honest, my brain just \
+                 exploded)."
+            }
+        };
+        let reply = format!("Ok, I'll note you're up for {}.", kind);
         if let Err(msg) = self.discord
             .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
@@ -184,11 +213,8 @@ impl ShBot<BotConnection> {
     }
 
     fn handle_dont_want(&mut self, msg: Message) {
-        let reply = if self.sh_status.user_doesnt_want_sh(msg.author.id) {
-            "Ok, I'll take you off the list."
-        } else {
-            "I'll remember to not bother you about Stronghold."
-        };
+        self.sh_status.add_user_doesnt_want_sh(msg.author.id);
+        let reply = "Ok, I'll take you off the list.";
         if let Err(msg) = self.discord
             .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
@@ -197,10 +223,15 @@ impl ShBot<BotConnection> {
     }
 
     fn handle_status(&mut self, msg: Message) {
-        let num_wanting = self.sh_status.num_users_wanting_sh();
+        let status_report = self.sh_status.get_current_status();
         // TODO special case one player (is/are)
-        let reply = format!("There are currently {} players who want to play Stronghold.",
-                            num_wanting);
+        // TODO better solution for multiline strings?
+        let reply = format!("There is currently a total of {} players who want to play Stronghold.
+{} want tier 6, {} tier 8 and {} tier 10.",
+                            status_report.num_wanting_total,
+                            status_report.num_wanting_t6,
+                            status_report.num_wanting_t8,
+                            status_report.num_wanting_t10);
         if let Err(msg) = self.discord
             .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
