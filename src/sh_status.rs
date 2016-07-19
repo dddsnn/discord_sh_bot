@@ -1,5 +1,12 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use discord::model::UserId;
+
+#[derive(Eq, PartialEq, Hash)]
+pub enum Tier {
+    Tier6,
+    Tier8,
+    Tier10,
+}
 
 pub struct ShStatus {
     user_data: HashMap<UserId, UserData>,
@@ -13,10 +20,15 @@ pub struct StatusReport {
 }
 
 pub struct UserData {
-    pub wants_t6: bool,
-    pub wants_t8: bool,
-    pub wants_t10: bool,
+    pub wants: HashSet<Want>,
 }
+
+#[derive(Eq, PartialEq, Hash)]
+pub struct Want {
+    pub tier: Tier,
+}
+
+// impl Eq for UserDatum{}
 
 impl ShStatus {
     pub fn new() -> Self {
@@ -24,43 +36,47 @@ impl ShStatus {
     }
 
     /// Returns new user data.
-    pub fn add_user_wants_sh(&mut self,
+    pub fn set_user_wants_sh(&mut self,
                              user_id: UserId,
                              t6: bool,
                              t8: bool,
                              t10: bool)
-                             -> UserData {
-        let user_data = self.user_data.entry(user_id).or_insert(UserData {
-            wants_t6: false,
-            wants_t8: false,
-            wants_t10: false,
-        });
-        user_data.wants_t6 |= t6;
-        user_data.wants_t8 |= t8;
-        user_data.wants_t10 |= t10;
-        UserData {
-            wants_t6: user_data.wants_t6,
-            wants_t8: user_data.wants_t8,
-            wants_t10: user_data.wants_t10,
+                             -> &UserData {
+        let user_data = self.user_data.entry(user_id).or_insert(UserData { wants: HashSet::new() });
+        if t6 {
+            user_data.wants.insert(Want { tier: Tier::Tier6 });
         }
+        if t8 {
+            user_data.wants.insert(Want { tier: Tier::Tier8 });
+        }
+        if t10 {
+            user_data.wants.insert(Want { tier: Tier::Tier10 });
+        }
+        user_data
     }
 
-    pub fn add_user_doesnt_want_sh(&mut self, user_id: UserId) {
-        self.user_data.insert(user_id,
-                              UserData {
-                                  wants_t6: false,
-                                  wants_t8: false,
-                                  wants_t10: false,
-                              });
+    pub fn set_user_doesnt_want_sh(&mut self, user_id: UserId) {
+        if let Some(user_data) = self.user_data.get_mut(&user_id) {
+            user_data.wants.clear();
+        }
     }
 
     pub fn get_current_status(&self) -> StatusReport {
         let update = |mut acc: StatusReport, user_data: &UserData| {
-            acc.num_wanting_total +=
-                (user_data.wants_t6 || user_data.wants_t8 || user_data.wants_t10) as usize;
-            acc.num_wanting_t6 += user_data.wants_t6 as usize;
-            acc.num_wanting_t8 += user_data.wants_t8 as usize;
-            acc.num_wanting_t10 += user_data.wants_t10 as usize;
+            if !user_data.wants.is_empty() {
+                acc.num_wanting_total += 1;
+            }
+            let (mut wants_t6, mut wants_t8, mut wants_t10) = (false, false, false);
+            for datum in user_data.wants.iter() {
+                match datum.tier {
+                    Tier::Tier6 => wants_t6 = true,
+                    Tier::Tier8 => wants_t8 = true,
+                    Tier::Tier10 => wants_t10 = true,
+                }
+            }
+            acc.num_wanting_t6 += wants_t6 as usize;
+            acc.num_wanting_t8 += wants_t8 as usize;
+            acc.num_wanting_t10 += wants_t10 as usize;
             acc
         };
         let init_status = StatusReport {
