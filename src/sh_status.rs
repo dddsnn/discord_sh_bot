@@ -1,11 +1,21 @@
 use std::collections::{HashMap, HashSet};
 use discord::model::UserId;
+use time;
 
 #[derive(Eq, PartialEq, Hash)]
 pub enum Tier {
     Tier6,
     Tier8,
     Tier10,
+}
+
+#[derive(Eq, PartialEq, Hash)]
+pub enum Timeframe {
+    Always,
+    UntilLogout,
+    Timespan {
+        until: time::Tm,
+    },
 }
 
 pub struct ShStatus {
@@ -26,6 +36,7 @@ pub struct UserData {
 #[derive(Eq, PartialEq, Hash)]
 pub struct Want {
     pub tier: Tier,
+    pub time: Timeframe,
 }
 
 // impl Eq for UserDatum{}
@@ -36,21 +47,10 @@ impl ShStatus {
     }
 
     /// Returns new user data.
-    pub fn set_user_wants_sh(&mut self,
-                             user_id: UserId,
-                             t6: bool,
-                             t8: bool,
-                             t10: bool)
-                             -> &UserData {
+    pub fn set_user_wants_sh(&mut self, user_id: UserId, wants: HashSet<Want>) -> &UserData {
         let user_data = self.user_data.entry(user_id).or_insert(UserData { wants: HashSet::new() });
-        if t6 {
-            user_data.wants.insert(Want { tier: Tier::Tier6 });
-        }
-        if t8 {
-            user_data.wants.insert(Want { tier: Tier::Tier8 });
-        }
-        if t10 {
-            user_data.wants.insert(Want { tier: Tier::Tier10 });
+        for want in wants {
+            user_data.wants.insert(want);
         }
         user_data
     }

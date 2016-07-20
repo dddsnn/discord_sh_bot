@@ -1,5 +1,7 @@
+use std::collections::HashSet;
 use discord::model::Message;
 use common::SplitWhitespaceWithRest;
+use sh_status::{Want, Timeframe, Tier};
 
 pub enum Request {
     None,
@@ -9,9 +11,7 @@ pub enum Request {
     },
     Help,
     Want {
-        t6: bool,
-        t8: bool,
-        t10: bool,
+        wants: HashSet<Want>,
     },
     DontWant,
     Status,
@@ -59,28 +59,46 @@ fn parse_echo(tokens: SplitWhitespaceWithRest) -> Request {
 }
 
 fn parse_want(mut tokens: SplitWhitespaceWithRest) -> Request {
+    let mut wants = HashSet::new();
     if let None = tokens.rest() {
-        // No tiers specified, assume all are OK.
-        return Request::Want {
-            t6: true,
-            t8: true,
-            t10: true,
-        };
+        // No tiers specified, assume all are OK until next logout.
+        // TODO clone from a default value
+        wants.insert(Want {
+            tier: Tier::Tier6,
+            time: Timeframe::UntilLogout,
+        });
+        wants.insert(Want {
+            tier: Tier::Tier8,
+            time: Timeframe::UntilLogout,
+        });
+        wants.insert(Want {
+            tier: Tier::Tier10,
+            time: Timeframe::UntilLogout,
+        });
     }
-    let (mut t6, mut t8, mut t10) = (false, false, false);
     loop {
         match tokens.next() {
-            None => {
-                return Request::Want {
-                    t6: t6,
-                    t8: t8,
-                    t10: t10,
-                };
+            None => return Request::Want { wants: wants },
+            Some("6") => {
+                wants.insert(Want {
+                    tier: Tier::Tier6,
+                    time: Timeframe::UntilLogout,
+                });
             }
-            Some("6") => t6 = true,
-            Some("8") => t8 = true,
-            Some("10") => t10 = true,
+            Some("8") => {
+                wants.insert(Want {
+                    tier: Tier::Tier8,
+                    time: Timeframe::UntilLogout,
+                });
+            }
+            Some("10") => {
+                wants.insert(Want {
+                    tier: Tier::Tier10,
+                    time: Timeframe::UntilLogout,
+                });
+            }
             Some(_) => {
+                // TODO parse timeframe
                 // TODO invalid command instead of unknown: started out right (with want), but
                 // didn't specify tier correctly
                 return Request::Unknown;

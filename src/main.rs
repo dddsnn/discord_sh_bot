@@ -1,14 +1,16 @@
 extern crate discord;
+extern crate time;
 
 mod discord_connection;
 mod common;
 mod sh_status;
 mod message_parser;
 
+use std::collections::HashSet;
 use std::sync::mpsc;
 use discord::model::{Event, Channel, CurrentUser, Message};
 use discord_connection::{DiscordConnection, BotConnection};
-use sh_status::{ShStatus, Tier};
+use sh_status::{ShStatus, Tier, Want};
 use message_parser::Request;
 
 const BOT_COMMAND: &'static str = ".sh";
@@ -138,7 +140,7 @@ impl ShBot<BotConnection> {
             Request::Unknown => self.handle_unknown(msg),
             Request::Echo { echo_msg } => self.handle_echo(msg, &echo_msg),
             Request::Help => self.handle_help(msg),
-            Request::Want { t6, t8, t10 } => self.handle_want(msg, t6, t8, t10),
+            Request::Want { wants } => self.handle_want(msg, wants),
             Request::DontWant => self.handle_dont_want(msg),
             Request::Status => self.handle_status(msg),
         }
@@ -173,9 +175,10 @@ impl ShBot<BotConnection> {
         }
     }
 
-    fn handle_want(&mut self, msg: Message, t6: bool, t8: bool, t10: bool) {
-        let ud = self.sh_status.set_user_wants_sh(msg.author.id, t6, t8, t10);
+    fn handle_want(&mut self, msg: Message, wants: HashSet<Want>) {
+        let ud = self.sh_status.set_user_wants_sh(msg.author.id, wants);
         // TODO maybe factor out forming the reply? this gets pretty long
+        // TODO respond with chosen timeframe
         let mut kind = String::new();
         for (i, want) in ud.wants.iter().enumerate() {
             match want.tier {
