@@ -3,21 +3,7 @@ use time;
 use time::Duration;
 use discord::model::Message;
 use common::SplitWhitespaceWithRest;
-use sh_status::{Want, Timeframe, Tier};
-
-pub enum Request {
-    None,
-    Unknown,
-    Echo {
-        echo_msg: String,
-    },
-    Help,
-    Want {
-        wants: HashSet<Want>,
-    },
-    DontWant,
-    Status,
-}
+use model::{Tier, Timeframe, Want, Request};
 
 // TODO unhardcode command strings
 pub fn parse_message(msg: &Message) -> Request {

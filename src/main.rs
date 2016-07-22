@@ -5,13 +5,14 @@ mod discord_connection;
 mod common;
 mod sh_status;
 mod message_parser;
+mod model;
 
 use std::collections::HashSet;
 use std::sync::mpsc;
 use discord::model::{Event, Channel, CurrentUser, Message};
 use discord_connection::{DiscordConnection, BotConnection};
-use sh_status::{ShStatus, Tier, Want, Timeframe};
-use message_parser::Request;
+use model::{Tier, Want, Timeframe, Request};
+use sh_status::ShStatus;
 
 const BOT_COMMAND: &'static str = ".sh";
 
