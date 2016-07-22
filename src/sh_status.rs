@@ -9,7 +9,7 @@ pub enum Tier {
     Tier10,
 }
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy)]
 pub enum Timeframe {
     Always,
     UntilLogout,

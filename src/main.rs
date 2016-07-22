@@ -195,9 +195,15 @@ impl ShBot<BotConnection> {
                 Timeframe::Always => kind.push_str("whenever you're online"),
                 Timeframe::UntilLogout => kind.push_str("until you log out"),
                 Timeframe::Timespan { until } => {
-                    // TODO handle error on unwrap
-                    let tm_fmt = until.strftime("{tm_hour}:{tm_minute}").unwrap();
-                    kind.push_str(&format!("until {}", tm_fmt));
+                    // TODO handle error better
+                    let time = {
+                        if let Ok(tm_fmt) = until.strftime("%R UTC") {
+                            format!("{}", tm_fmt)
+                        } else {
+                            "error formatting time".to_owned()
+                        }
+                    };
+                    kind.push_str(&format!("until {}", time));
                 }
             }
             if i + 2 < ud.wants.len() {
