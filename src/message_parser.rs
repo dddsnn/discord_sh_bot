@@ -17,7 +17,6 @@ pub fn parse_message(msg: &Message) -> Request {
                 Some(token) => {
                     match &*token.to_lowercase() {
                         "" => return Request::None,
-                        "echo" => return parse_echo(tokens),
                         "help" => return Request::Help,
                         "want" => return parse_want(tokens),
                         "status" => return Request::Status,
@@ -40,10 +39,6 @@ pub fn parse_message(msg: &Message) -> Request {
             return Request::Unknown;
         }
     }
-}
-
-fn parse_echo(tokens: SplitWhitespaceWithRest) -> Request {
-    Request::Echo { echo_msg: tokens.rest().unwrap_or("").to_owned() }
 }
 
 fn parse_want(mut tokens: SplitWhitespaceWithRest) -> Request {

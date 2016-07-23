@@ -62,7 +62,6 @@ struct ShBot<D: DiscordConnection> {
 impl ShBot<BotConnection> {
     fn new(token: &str, shutdown_receiver: mpsc::Receiver<()>) -> Self {
         let (d, me) = BotConnection::from_bot_token(token);
-        //        let shutdown_received = shutdown_received.clone();
         ShBot {
             discord: d,
             me: me,
@@ -139,7 +138,6 @@ impl ShBot<BotConnection> {
         match req {
             Request::None => {}
             Request::Unknown => self.handle_unknown(msg),
-            Request::Echo { echo_msg } => self.handle_echo(msg, &echo_msg),
             Request::Help => self.handle_help(msg),
             Request::Want { wants } => self.handle_want(msg, wants),
             Request::DontWant => self.handle_dont_want(msg),
@@ -150,15 +148,6 @@ impl ShBot<BotConnection> {
     fn handle_unknown(&self, msg: Message) {
         let reply = "\"".to_owned() + &msg.content +
                     "\" is not a valid request. Type \"help\" to find out what is.";
-        if let Err(msg) = self.discord
-            .send_message(&msg.channel_id, &reply, false) {
-            // TODO log, don't print
-            println!("Failed to send message: {}", msg);
-        }
-    }
-
-    fn handle_echo(&self, msg: Message, echo_msg: &str) {
-        let reply = msg.author.name + " wants me to echo \"" + echo_msg + "\".";
         if let Err(msg) = self.discord
             .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print

@@ -4,9 +4,6 @@ use time;
 pub enum Request {
     None,
     Unknown,
-    Echo {
-        echo_msg: String,
-    },
     Help,
     Want {
         wants: HashSet<Want>,
