@@ -6,12 +6,13 @@ mod common;
 mod sh_status;
 mod message_parser;
 mod model;
+mod replier;
 
 use std::collections::HashSet;
 use std::sync::mpsc;
 use discord::model::{Event, Channel, CurrentUser, Message};
 use discord_connection::{DiscordConnection, BotConnection};
-use model::{Tier, Want, Timeframe, Request};
+use model::{Want, Request};
 use sh_status::ShStatus;
 
 const BOT_COMMAND: &'static str = ".sh";
@@ -42,6 +43,7 @@ fn listen_for_shutdown(shutdown_sender: mpsc::Sender<()>) {
                 0
             });
         let input = buf.trim();
+        // TODO unhardcode shutdown commands
         if input == "s" || input == "shutdown" {
             break;
         }
@@ -146,8 +148,7 @@ impl ShBot<BotConnection> {
     }
 
     fn handle_unknown(&self, msg: Message) {
-        let reply = "\"".to_owned() + &msg.content +
-                    "\" is not a valid request. Type \"help\" to find out what is.";
+        let reply = replier::unknown_request(&msg.content);
         if let Err(msg) = self.discord
             .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
@@ -156,8 +157,7 @@ impl ShBot<BotConnection> {
     }
 
     fn handle_help(&self, msg: Message) {
-        // TODO
-        let reply = "This is an unhelpful help text. There'll be a better one, I promise.";
+        let reply = replier::help();
         if let Err(msg) = self.discord
             .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
@@ -167,44 +167,7 @@ impl ShBot<BotConnection> {
 
     fn handle_want(&mut self, msg: Message, wants: HashSet<Want>) {
         let ud = self.sh_status.set_user_wants_sh(msg.author.id, wants);
-        // TODO maybe factor out forming the reply? this gets pretty long
-        // TODO sort based on tier (tier 6 should always be first etc.) and group to compactify the
-        // information
-        let mut kind = String::new();
-        for (i, want) in ud.wants.iter().enumerate() {
-            match want.tier {
-                Tier::Tier6 => kind.push_str("tier 6 "),
-                Tier::Tier8 => kind.push_str("tier 8 "),
-                Tier::Tier10 => kind.push_str("tier 10 "),
-            }
-            if i == 0 {
-                // First in the list, add a Stronghold.
-                kind.push_str(" Stronghold ");
-            }
-            match want.time {
-                Timeframe::Always => kind.push_str("whenever you're online"),
-                Timeframe::UntilLogout => kind.push_str("until you log out"),
-                Timeframe::Timespan { until } => {
-                    // TODO handle error better
-                    let time = {
-                        if let Ok(tm_fmt) = until.strftime("%R UTC") {
-                            format!("{}", tm_fmt)
-                        } else {
-                            "error formatting time".to_owned()
-                        }
-                    };
-                    kind.push_str(&format!("until {}", time));
-                }
-            }
-            if i + 2 < ud.wants.len() {
-                // Before second-to-last one, add comma for enumeration.
-                kind.push_str(", ");
-            } else if i + 2 == ud.wants.len() {
-                // Second-to-last one, add "and".
-                kind.push_str(" and ");
-            }
-        }
-        let reply = format!("Ok, I'll note you're up for {}.", kind);
+        let reply = replier::want(ud);
         if let Err(msg) = self.discord
             .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
@@ -214,7 +177,7 @@ impl ShBot<BotConnection> {
 
     fn handle_dont_want(&mut self, msg: Message) {
         self.sh_status.set_user_doesnt_want_sh(msg.author.id);
-        let reply = "Ok, I'll take you off the list.";
+        let reply = replier::dont_want();
         if let Err(msg) = self.discord
             .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
@@ -224,14 +187,7 @@ impl ShBot<BotConnection> {
 
     fn handle_status(&mut self, msg: Message) {
         let status_report = self.sh_status.get_current_status();
-        // TODO special case one player (is/are)
-        // TODO better solution for multiline strings?
-        let reply = format!("There is currently a total of {} players who want to play Stronghold.
-{} want tier 6, {} tier 8 and {} tier 10.",
-                            status_report.num_wanting_total,
-                            status_report.num_wanting_t6,
-                            status_report.num_wanting_t8,
-                            status_report.num_wanting_t10);
+        let reply = replier::status(&status_report);
         if let Err(msg) = self.discord
             .send_message(&msg.channel_id, &reply, false) {
             // TODO log, don't print
