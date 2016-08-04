@@ -1,9 +1,32 @@
+use std::collections::HashSet;
+use std::cmp::Eq;
+use std::hash::{Hash, BuildHasher};
+
 /// Splits a string at the first whitespace and returns a tuple of the parts, both trimmed.
 pub fn str_head_tail(s: &str) -> (String, String) {
     let mut parts = s.splitn(2, |c: char| c.is_whitespace());
     let first = parts.next().unwrap_or("").trim().to_owned();
     let second = parts.next().unwrap_or("").trim().to_owned();
     (first, second)
+}
+
+pub trait Retain<T> {
+    fn retain<F>(&mut self, f: F) where F: Fn(&T) -> bool;
+}
+
+impl<T, S> Retain<T> for HashSet<T, S>
+    where T: Eq + Hash,
+          S: BuildHasher
+{
+    fn retain<F>(&mut self, f: F)
+        where F: Fn(&T) -> bool
+    {
+        // TODO is there a way without using a temp set?
+        let to_retain = self.drain().filter(f).collect::<HashSet<T>>();
+        for e in to_retain {
+            self.insert(e);
+        }
+    }
 }
 
 pub struct SplitWhitespaceWithRest<'a> {
@@ -66,6 +89,39 @@ impl<'a> SplitWhitespaceWithRest<'a> {
             .map(|i| i + 1)
             .unwrap_or(0);
         self.start_idx = prev_start_idx;
+    }
+}
+
+#[cfg(test)]
+mod tests_hash_set_retain {
+    use super::Retain;
+    use std::collections::HashSet;
+
+    #[test]
+    fn retains_matching() {
+        let mut v = vec![-100, -3, 0, 1, 2, 3, 100, 101];
+        let mut set = v.drain(..).collect::<HashSet<i32>>();
+        set.retain(|&i| i > 1);
+        let mut expected = vec![2, 3, 100, 101];
+        assert_eq!(expected.drain(..).collect::<HashSet<i32>>(), set);
+    }
+
+    #[test]
+    fn clears_if_all_match() {
+        let mut v = vec![-100, -3, 0, 1, 2, 3, 100, 101];
+        let mut set = v.drain(..).collect::<HashSet<i32>>();
+        set.retain(|&i| i > 1000);
+        let mut expected = vec![];
+        assert_eq!(expected.drain(..).collect::<HashSet<i32>>(), set);
+    }
+
+    #[test]
+    fn noop_if_all_match() {
+        let mut v = vec![-100, -3, 0, 1, 2, 3, 100, 101];
+        let mut set = v.drain(..).collect::<HashSet<i32>>();
+        set.retain(|&i| i > -1000);
+        let mut expected = vec![-100, -3, 0, 1, 2, 3, 100, 101];
+        assert_eq!(expected.drain(..).collect::<HashSet<i32>>(), set);
     }
 }
 
