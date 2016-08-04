@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use discord::model::{UserId, OnlineStatus};
 use model::{Tier, StatusReport, UserData, Want, Timeframe};
 use common::Retain;
+use time;
 
 pub struct ShStatus {
     user_data: HashMap<UserId, UserData>,
@@ -43,7 +44,9 @@ impl ShStatus {
         }
     }
 
-    pub fn get_current_status(&self) -> StatusReport {
+    pub fn get_current_status(&mut self) -> StatusReport {
+        // Clean up the current user data, e.g. remove outdated wants.
+        update_user_data(self.user_data.values_mut());
         let update = |mut acc: StatusReport, user_data: &UserData| {
             if !user_data.wants.is_empty() {
                 acc.num_wanting_total += 1;
@@ -71,5 +74,18 @@ impl ShStatus {
             .values()
             .filter(|ud| ud.status == OnlineStatus::Online)
             .fold(init_status, &update)
+    }
+}
+
+fn update_user_data<'a, I: Iterator<Item = &'a mut UserData>>(data: I) {
+    let now = time::now();
+    for d in data {
+        // Only retain timespan wants that are valid beyond now.
+        d.wants.retain(|w| {
+            match w.time {
+                Timeframe::Timespan { until } => until > now,
+                _ => true,
+            }
+        });
     }
 }
