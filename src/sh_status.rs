@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
-use discord::model::UserId;
-use model::{Tier, StatusReport, UserData, Want};
+use discord::model::{UserId, OnlineStatus};
+use model::{Tier, StatusReport, UserData, Want, Timeframe};
+use common::Retain;
 
 pub struct ShStatus {
     user_data: HashMap<UserId, UserData>,
@@ -13,7 +14,11 @@ impl ShStatus {
 
     /// Returns new user data.
     pub fn set_user_wants_sh(&mut self, user_id: UserId, wants: HashSet<Want>) -> &UserData {
-        let user_data = self.user_data.entry(user_id).or_insert(UserData { wants: HashSet::new() });
+        let user_data = self.user_data.entry(user_id).or_insert(UserData {
+            // TODO set user's actual online status (may theoretically be idle (?))
+            status: OnlineStatus::Online,
+            wants: HashSet::new(),
+        });
         for want in wants {
             user_data.wants.insert(want);
         }
@@ -23,6 +28,18 @@ impl ShStatus {
     pub fn set_user_doesnt_want_sh(&mut self, user_id: UserId) {
         if let Some(user_data) = self.user_data.get_mut(&user_id) {
             user_data.wants.clear();
+        }
+    }
+
+    pub fn set_user_changed_status(&mut self, user_id: UserId, status: OnlineStatus) {
+        let user_data = self.user_data.entry(user_id).or_insert(UserData {
+            status: status,
+            wants: HashSet::new(),
+        });
+        user_data.status = status;
+        if status == OnlineStatus::Offline {
+            // User is now offline, delete all wants that were only valid until he logged out.
+            user_data.wants.retain(|w| w.time != Timeframe::UntilLogout);
         }
     }
 
@@ -50,6 +67,9 @@ impl ShStatus {
             num_wanting_t8: 0,
             num_wanting_t10: 0,
         };
-        self.user_data.values().fold(init_status, &update)
+        self.user_data
+            .values()
+            .filter(|ud| ud.status == OnlineStatus::Online)
+            .fold(init_status, &update)
     }
 }

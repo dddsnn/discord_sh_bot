@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use time;
+use discord::model::OnlineStatus;
 
 pub enum Request {
     None,
@@ -36,6 +37,7 @@ pub struct StatusReport {
 }
 
 pub struct UserData {
+    pub status: OnlineStatus,
     pub wants: HashSet<Want>,
 }
 

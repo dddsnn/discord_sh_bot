@@ -100,6 +100,16 @@ impl ShBot<BotConnection> {
                 }
                 self.handle_message(msg);
             }
+            Ok(Event::PresenceUpdate { presence, server_id: _, roles: _ }) => {
+                self.sh_status.set_user_changed_status(presence.user_id, presence.status);
+            }
+            Ok(Event::PresencesReplace(presences)) => {
+                // I _think_ that PresencesReplace is a bulk presence update.
+                // TODO but it's not documented
+                for presence in presences {
+                    self.sh_status.set_user_changed_status(presence.user_id, presence.status);
+                }
+            }
             _ => {
                 // Event we don't care about.
             }
