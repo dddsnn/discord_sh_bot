@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::cmp::Eq;
 use std::hash::{Hash, BuildHasher};
 
@@ -25,6 +25,21 @@ impl<T, S> Retain<T> for HashSet<T, S>
         let to_retain = self.drain().filter(f).collect::<HashSet<T>>();
         for e in to_retain {
             self.insert(e);
+        }
+    }
+}
+
+impl<K, V, S> Retain<K> for HashMap<K, V, S>
+    where K: Eq + Hash,
+          S: BuildHasher
+{
+    fn retain<F>(&mut self, f: F)
+        where F: Fn(&K) -> bool
+    {
+        // TODO is there a way without using a temp map?
+        let to_retain = self.drain().filter(|&(ref k, _)| f(k)).collect::<HashMap<K, V>>();
+        for (k, v) in to_retain {
+            self.insert(k, v);
         }
     }
 }
@@ -122,6 +137,40 @@ mod tests_hash_set_retain {
         set.retain(|&i| i > -1000);
         let mut expected = vec![-100, -3, 0, 1, 2, 3, 100, 101];
         assert_eq!(expected.drain(..).collect::<HashSet<i32>>(), set);
+    }
+}
+
+#[cfg(test)]
+mod tests_hash_map_retain {
+    use super::Retain;
+    use std::collections::HashMap;
+
+    #[test]
+    fn retains_matching() {
+        let mut v = vec![(-100, 0), (-3, 0), (0, 0), (1, 0), (2, 0), (3, 0), (100, 0), (101, 0)];
+        let mut map = v.drain(..).collect::<HashMap<i32, i32>>();
+        map.retain(|&i| i > 1);
+        let mut expected = vec![(2, 0), (3, 0), (100, 0), (101, 0)];
+        assert_eq!(expected.drain(..).collect::<HashMap<i32, i32>>(), map);
+    }
+
+    #[test]
+    fn clears_if_all_match() {
+        let mut v = vec![(-100, 0), (-3, 0), (0, 0), (1, 0), (2, 0), (3, 0), (100, 0), (101, 0)];
+        let mut map = v.drain(..).collect::<HashMap<i32, i32>>();
+        map.retain(|&i| i > 1000);
+        let mut expected = vec![];
+        assert_eq!(expected.drain(..).collect::<HashMap<i32, i32>>(), map);
+    }
+
+    #[test]
+    fn noop_if_all_match() {
+        let mut v = vec![(-100, 0), (-3, 0), (0, 0), (1, 0), (2, 0), (3, 0), (100, 0), (101, 0)];
+        let mut map = v.drain(..).collect::<HashMap<i32, i32>>();
+        map.retain(|&i| i > -1000);
+        let mut expected = vec![(-100, 0), (-3, 0), (0, 0), (1, 0), (2, 0), (3, 0), (100, 0),
+                                (101, 0)];
+        assert_eq!(expected.drain(..).collect::<HashMap<i32, i32>>(), map);
     }
 }
 
