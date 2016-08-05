@@ -1,4 +1,6 @@
 use model::{UserData, Tier, Timeframe, StatusReport};
+use std::iter;
+use std::collections::HashSet;
 
 pub fn unknown_request(msg_content: &str) -> String {
     "\"".to_owned() + msg_content + "\" is not a valid request. Type \"help\" to find out what is."
@@ -13,7 +15,12 @@ pub fn want(ud: &UserData) -> String {
     // TODO sort based on tier (tier 6 should always be first etc.) and group to compactify the
     // information
     let mut kind = String::new();
-    for (i, want) in ud.wants.iter().enumerate() {
+    // TODO use .sum() instead of .fold() once it's stable
+    let num_wants = ud.time_wants.values().map(HashSet::len).fold(0, |a, i| a + i);
+    for (i, (time, want)) in ud.time_wants
+        .iter()
+        .flat_map(|(t, ws)| iter::repeat(t).zip(ws.iter()))
+        .enumerate() {
         match want.tier {
             Tier::Tier6 => kind.push_str("tier 6 "),
             Tier::Tier8 => kind.push_str("tier 8 "),
@@ -23,7 +30,8 @@ pub fn want(ud: &UserData) -> String {
             // First in the list, add a Stronghold.
             kind.push_str(" Stronghold ");
         }
-        match want.time {
+        // TODO is there a way i don't have to use * here? in constructing the iterator in the for?
+        match *time {
             Timeframe::Always => kind.push_str("whenever you're online"),
             Timeframe::UntilLogout => kind.push_str("until you log out"),
             Timeframe::Timespan { until } => {
@@ -38,10 +46,10 @@ pub fn want(ud: &UserData) -> String {
                 kind.push_str(&format!("until {}", time));
             }
         }
-        if i + 2 < ud.wants.len() {
+        if i + 2 < num_wants {
             // Before second-to-last one, add comma for enumeration.
             kind.push_str(", ");
-        } else if i + 2 == ud.wants.len() {
+        } else if i + 2 == num_wants {
             // Second-to-last one, add "and".
             kind.push_str(" and ");
         }

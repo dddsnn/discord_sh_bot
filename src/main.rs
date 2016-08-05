@@ -12,7 +12,7 @@ use std::collections::HashSet;
 use std::sync::mpsc;
 use discord::model::{Event, Channel, CurrentUser, Message};
 use discord_connection::{DiscordConnection, BotConnection};
-use model::{Want, Request};
+use model::{Want, Request, Timeframe};
 use sh_status::ShStatus;
 
 const BOT_COMMAND: &'static str = ".sh";
@@ -151,7 +151,7 @@ impl ShBot<BotConnection> {
             Request::None => {}
             Request::Unknown => self.handle_unknown(msg),
             Request::Help => self.handle_help(msg),
-            Request::Want { wants } => self.handle_want(msg, wants),
+            Request::Want { time, wants } => self.handle_want(msg, time, wants),
             Request::DontWant => self.handle_dont_want(msg),
             Request::Status => self.handle_status(msg),
         }
@@ -175,8 +175,8 @@ impl ShBot<BotConnection> {
         }
     }
 
-    fn handle_want(&mut self, msg: Message, wants: HashSet<Want>) {
-        let ud = self.sh_status.set_user_wants_sh(msg.author.id, wants);
+    fn handle_want(&mut self, msg: Message, time: Timeframe, wants: HashSet<Want>) {
+        let ud = self.sh_status.set_user_wants_sh(msg.author.id, time, wants);
         let reply = replier::want(ud);
         if let Err(msg) = self.discord
             .send_message(&msg.channel_id, &reply, false) {

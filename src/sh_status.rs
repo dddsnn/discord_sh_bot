@@ -5,54 +5,61 @@ use common::Retain;
 use time;
 
 pub struct ShStatus {
-    user_data: HashMap<UserId, UserData>,
+    users_data: HashMap<UserId, UserData>,
 }
 
 impl ShStatus {
     pub fn new() -> Self {
-        ShStatus { user_data: HashMap::new() }
+        ShStatus { users_data: HashMap::new() }
     }
 
     /// Returns new user data.
-    pub fn set_user_wants_sh(&mut self, user_id: UserId, wants: HashSet<Want>) -> &UserData {
-        let user_data = self.user_data.entry(user_id).or_insert(UserData {
+    pub fn set_user_wants_sh(&mut self,
+                             user_id: UserId,
+                             time: Timeframe,
+                             wants: HashSet<Want>)
+                             -> &UserData {
+        let user_data = self.users_data.entry(user_id).or_insert(UserData {
             // TODO set user's actual online status (may theoretically be idle (?))
             status: OnlineStatus::Online,
-            wants: HashSet::new(),
+            time_wants: HashMap::new(),
         });
-        for want in wants {
-            user_data.wants.insert(want);
+        {
+            let existing_wants = user_data.time_wants.entry(time).or_insert(HashSet::new());
+            for want in wants {
+                existing_wants.insert(want);
+            }
         }
         user_data
     }
 
     pub fn set_user_doesnt_want_sh(&mut self, user_id: UserId) {
-        if let Some(user_data) = self.user_data.get_mut(&user_id) {
-            user_data.wants.clear();
+        if let Some(user_data) = self.users_data.get_mut(&user_id) {
+            user_data.time_wants.clear();
         }
     }
 
     pub fn set_user_changed_status(&mut self, user_id: UserId, status: OnlineStatus) {
-        let user_data = self.user_data.entry(user_id).or_insert(UserData {
+        let user_data = self.users_data.entry(user_id).or_insert(UserData {
             status: status,
-            wants: HashSet::new(),
+            time_wants: HashMap::new(),
         });
         user_data.status = status;
         if status == OnlineStatus::Offline {
             // User is now offline, delete all wants that were only valid until he logged out.
-            user_data.wants.retain(|w| w.time != Timeframe::UntilLogout);
+            user_data.time_wants.retain(|t| t != &Timeframe::UntilLogout);
         }
     }
 
     pub fn get_current_status(&mut self) -> StatusReport {
         // Clean up the current user data, e.g. remove outdated wants.
-        update_user_data(self.user_data.values_mut());
+        update_users_data(self.users_data.values_mut());
         let update = |mut acc: StatusReport, user_data: &UserData| {
-            if !user_data.wants.is_empty() {
+            if !user_data.time_wants.is_empty() {
                 acc.num_wanting_total += 1;
             }
             let (mut wants_t6, mut wants_t8, mut wants_t10) = (false, false, false);
-            for datum in user_data.wants.iter() {
+            for datum in user_data.time_wants.values().flat_map(|s| s.iter()) {
                 match datum.tier {
                     Tier::Tier6 => wants_t6 = true,
                     Tier::Tier8 => wants_t8 = true,
@@ -70,22 +77,22 @@ impl ShStatus {
             num_wanting_t8: 0,
             num_wanting_t10: 0,
         };
-        self.user_data
+        self.users_data
             .values()
             .filter(|ud| ud.status == OnlineStatus::Online)
             .fold(init_status, &update)
     }
 }
 
-fn update_user_data<'a, I: Iterator<Item = &'a mut UserData>>(data: I) {
+fn update_users_data<'a, I: Iterator<Item = &'a mut UserData>>(data: I) {
     let now = time::now();
     for d in data {
         // Only retain timespan wants that are valid beyond now.
-        d.wants.retain(|w| {
-            match w.time {
-                Timeframe::Timespan { until } => until > now,
-                _ => true,
+        d.time_wants.retain(|&t| {
+            if let Timeframe::Timespan { until } = t {
+                return until > now;
             }
+            true
         });
     }
 }

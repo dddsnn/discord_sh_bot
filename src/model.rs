@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use time;
 use discord::model::OnlineStatus;
 
@@ -7,6 +7,7 @@ pub enum Request {
     Unknown,
     Help,
     Want {
+        time: Timeframe,
         wants: HashSet<Want>,
     },
     DontWant,
@@ -38,12 +39,11 @@ pub struct StatusReport {
 
 pub struct UserData {
     pub status: OnlineStatus,
-    pub wants: HashSet<Want>,
+    pub time_wants: HashMap<Timeframe, HashSet<Want>>,
 }
 
 
 #[derive(Eq, PartialEq, Hash)]
 pub struct Want {
     pub tier: Tier,
-    pub time: Timeframe,
 }

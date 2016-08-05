@@ -109,14 +109,12 @@ fn parse_want_timeframe(mut tokens: SplitWhitespaceWithRest, mut tiers: HashSet<
 
     };
     let wants = tiers.drain()
-        .map(|tier| {
-            Want {
-                tier: tier,
-                time: timeframe,
-            }
-        })
+        .map(|tier| Want { tier: tier })
         .collect();
-    Request::Want { wants: wants }
+    Request::Want {
+        time: timeframe,
+        wants: wants,
+    }
 }
 
 /// Parses format ("{}:{}h", hours, minutes)
