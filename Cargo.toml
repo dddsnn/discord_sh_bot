@@ -6,3 +6,4 @@ authors = ["dddsnn <marc.lehmann@gmx.de>"]
 [dependencies]
 discord = "0.6.0"
 time = "0.1.0"
+rustc-serialize = "0.3"

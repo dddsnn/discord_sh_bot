@@ -3,7 +3,9 @@ use discord::model::{UserId, OnlineStatus};
 use model::{Tier, StatusReport, UserData, Want, Timeframe};
 use common::Retain;
 use time;
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
+#[derive(PartialEq, Debug)]
 pub struct ShStatus {
     users_data: HashMap<UserId, UserData>,
 }
@@ -94,5 +96,130 @@ fn update_users_data<'a, I: Iterator<Item = &'a mut UserData>>(data: I) {
             }
             true
         });
+    }
+}
+
+const SERIALIZATION_VERSION: u32 = 1;
+
+impl Encodable for ShStatus {
+    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
+        s.emit_seq(2, |s| {
+            try!(s.emit_seq_elt(0, |s| s.emit_u32(SERIALIZATION_VERSION)));
+            s.emit_seq_elt(1, |s| {
+                s.emit_map(self.users_data.len(), |s| {
+                    for (i, (k, ref v)) in self.users_data.iter().enumerate() {
+                        try!(s.emit_map_elt_key(i, |s| {
+                            let UserId(id) = *k;
+                            s.emit_u64(id)
+                        }));
+                        try!(s.emit_map_elt_val(i, |s| v.encode(s)));
+                    }
+                    Ok(())
+                })
+            })
+        })
+    }
+}
+
+impl Decodable for ShStatus {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
+        d.read_seq(|d, _| {
+            let version = try!(d.read_seq_elt(0, |d| d.read_u32()));
+            if version != SERIALIZATION_VERSION {
+                return Err(d.error(&format!("Invalid serialization version {}.", version)));
+            }
+            let users_data = try!(d.read_seq_elt(1, |d| {
+                d.read_map(|d, len| {
+                    let mut users_data = HashMap::new();
+                    for i in 0..len {
+                        let user_id =
+                            try!(d.read_map_elt_key(i, |d| Ok(UserId(try!(d.read_u64())))));
+                        let user_data =
+                            try!(d.read_map_elt_val(i, |d| Ok(try!(UserData::decode(d)))));
+                        users_data.insert(user_id, user_data);
+                    }
+                    Ok(users_data)
+                })
+            }));
+            Ok(ShStatus { users_data: users_data })
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests_serialization {
+    use super::ShStatus;
+    use model::{UserData, Want, Timeframe, Tier};
+    use discord::model::{UserId, OnlineStatus};
+    use std::collections::{HashMap, HashSet};
+    use rustc_serialize::json::{encode, decode};
+    use time;
+
+    #[test]
+    fn sh_status_empty() {
+        let sh_status = ShStatus { users_data: HashMap::new() };
+        let encoded = encode(&sh_status).unwrap();
+        let decoded = decode::<ShStatus>(&encoded).unwrap();
+        assert_eq!(sh_status, decoded);
+    }
+
+    #[test]
+    fn sh_status_simple() {
+        let empty_user_data = UserData {
+            status: OnlineStatus::Online,
+            time_wants: HashMap::new(),
+        };
+        let sh_status = ShStatus {
+            users_data: {
+                let mut users_data = HashMap::new();
+                users_data.insert(UserId(0), empty_user_data);
+                users_data
+            },
+        };
+        let encoded = encode(&sh_status).unwrap();
+        let decoded = decode::<ShStatus>(&encoded).unwrap();
+        assert_eq!(sh_status, decoded);
+    }
+
+    #[test]
+    fn sh_status_complex() {
+        let user_ids = vec![UserId(0), UserId(1), UserId(1357)];
+        let statuses = vec![OnlineStatus::Online, OnlineStatus::Offline, OnlineStatus::Idle];
+        let time_wants2 = {
+            let mut time_wants = HashMap::new();
+            let wants = HashSet::new();
+            let until = time::at(time::Timespec::new(12345678, 2345));
+            time_wants.insert(Timeframe::Timespan { until: until }, wants);
+            time_wants
+        };
+        let time_wants3 = {
+            let mut time_wants = HashMap::new();
+            let wants1 = HashSet::new();
+            let mut wants2_vec = vec![Want { tier: Tier::Tier8 }];
+            let wants2 = wants2_vec.drain(..).collect::<HashSet<Want>>();
+            let mut wants3_vec = vec![Want { tier: Tier::Tier10 }, Want { tier: Tier::Tier6 }];
+            let wants3 = wants3_vec.drain(..).collect::<HashSet<Want>>();
+            let until = time::at(time::Timespec::new(12345678, 2345));
+            time_wants.insert(Timeframe::Always, wants1);
+            time_wants.insert(Timeframe::UntilLogout, wants2);
+            time_wants.insert(Timeframe::Timespan { until: until }, wants3);
+            time_wants
+        };
+        let time_wantss = vec![HashMap::new(), time_wants2, time_wants3];
+
+        let sh_status = {
+            let mut users_data = HashMap::new();
+            for ((user_id, status), time_wants) in user_ids.iter().zip(statuses).zip(time_wantss) {
+                let user_data = UserData {
+                    status: status,
+                    time_wants: time_wants,
+                };
+                users_data.insert(*user_id, user_data);
+            }
+            ShStatus { users_data: users_data }
+        };
+        let encoded = encode(&sh_status).unwrap();
+        let decoded = decode::<ShStatus>(&encoded).unwrap();
+        assert_eq!(sh_status, decoded);
     }
 }

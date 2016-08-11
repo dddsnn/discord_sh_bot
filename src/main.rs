@@ -1,5 +1,6 @@
 extern crate discord;
 extern crate time;
+extern crate rustc_serialize;
 
 mod discord_connection;
 mod common;
